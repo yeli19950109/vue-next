@@ -32,6 +32,10 @@ const outputConfigs = {
     file: resolve(`dist/${name}.cjs.js`),
     format: `cjs`
   },
+  umd: {
+    file: resolve(`dist/${name}.umd.js`),
+    format: `umd`
+  },
   global: {
     file: resolve(`dist/${name}.global.js`),
     format: `iife`
@@ -66,7 +70,7 @@ if (process.env.NODE_ENV === 'production') {
     if (format === 'cjs') {
       packageConfigs.push(createProductionConfig(format))
     }
-    if (/^(global|esm-browser)(-runtime)?/.test(format)) {
+    if (/^(global|esm-browser|umd)(-runtime)?/.test(format)) {
       packageConfigs.push(createMinifiedConfig(format))
     }
   })
@@ -85,7 +89,7 @@ function createConfig(format, output, plugins = []) {
   const isBundlerESMBuild = /esm-bundler/.test(format)
   const isBrowserESMBuild = /esm-browser/.test(format)
   const isNodeBuild = format === 'cjs'
-  const isGlobalBuild = /global/.test(format)
+  const isGlobalBuild = /global/.test(format) || format === 'umd'
   const isCompatPackage = pkg.name === '@vue/compat'
   const isCompatBuild = !!packageOptions.compat
 
@@ -95,6 +99,9 @@ function createConfig(format, output, plugins = []) {
 
   if (isGlobalBuild) {
     output.name = packageOptions.name
+  }
+  if (format === 'umd') {
+    output.name = 'Vue3'
   }
 
   const shouldEmitDeclarations =
@@ -167,17 +174,17 @@ function createConfig(format, output, plugins = []) {
     (format === 'cjs' && Object.keys(pkg.devDependencies || {}).length) ||
     packageOptions.enableNonBrowserBranches
       ? [
-          // @ts-ignore
-          require('@rollup/plugin-commonjs')({
-            sourceMap: false,
-            ignore: cjsIgnores
-          }),
-          ...(format === 'cjs'
-            ? []
-            : // @ts-ignore
-              [require('rollup-plugin-polyfill-node')()]),
-          require('@rollup/plugin-node-resolve').nodeResolve()
-        ]
+        // @ts-ignore
+        require('@rollup/plugin-commonjs')({
+          sourceMap: false,
+          ignore: cjsIgnores
+        }),
+        ...(format === 'cjs'
+          ? []
+          : // @ts-ignore
+          [require('rollup-plugin-polyfill-node')()]),
+        require('@rollup/plugin-node-resolve').nodeResolve()
+      ]
       : []
 
   return {
@@ -196,7 +203,7 @@ function createConfig(format, output, plugins = []) {
         isBrowserESMBuild,
         // isBrowserBuild?
         (isGlobalBuild || isBrowserESMBuild || isBundlerESMBuild) &&
-          !packageOptions.enableNonBrowserBranches,
+        !packageOptions.enableNonBrowserBranches,
         isGlobalBuild,
         isNodeBuild,
         isCompatBuild
@@ -230,9 +237,9 @@ function createReplacePlugin(
     __VERSION__: `"${masterVersion}"`,
     __DEV__: isBundlerESMBuild
       ? // preserve to be handled by bundlers
-        `(process.env.NODE_ENV !== 'production')`
+      `(process.env.NODE_ENV !== 'production')`
       : // hard coded dev/prod builds
-        !isProduction,
+      !isProduction,
     // this is only used during Vue's internal tests
     __TEST__: false,
     // If the build is expected to run directly in the browser (global / esm builds)
@@ -248,10 +255,10 @@ function createReplacePlugin(
     // for compiler-sfc browser build inlined deps
     ...(isBrowserESMBuild
       ? {
-          'process.env': '({})',
-          'process.platform': '""',
-          'process.stdout': 'null'
-        }
+        'process.env': '({})',
+        'process.platform': '""',
+        'process.stdout': 'null'
+      }
       : {}),
 
     // 2.x compat build
@@ -265,11 +272,11 @@ function createReplacePlugin(
       : false,
     ...(isProduction && isBrowserBuild
       ? {
-          'context.onError(': `/*#__PURE__*/ context.onError(`,
-          'emitError(': `/*#__PURE__*/ emitError(`,
-          'createCompilerError(': `/*#__PURE__*/ createCompilerError(`,
-          'createDOMCompilerError(': `/*#__PURE__*/ createDOMCompilerError(`
-        }
+        'context.onError(': `/*#__PURE__*/ context.onError(`,
+        'emitError(': `/*#__PURE__*/ emitError(`,
+        'createCompilerError(': `/*#__PURE__*/ createCompilerError(`,
+        'createDOMCompilerError(': `/*#__PURE__*/ createDOMCompilerError(`
+      }
       : {})
   }
   // allow inline overrides like

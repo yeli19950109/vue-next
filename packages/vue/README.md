@@ -1,5 +1,5 @@
 # vue
-
+only add a umd build
 ## Which dist file to use?
 
 ### From CDN or without a Bundler
